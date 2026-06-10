@@ -192,12 +192,36 @@ export function useWebRTC() {
     store.setRoomId(roomId)
     store.setConnectionStatus('connecting')
 
-    socketConnect()
-    const stream = await getLocalStream()
-    setupSignalingHandlers()
+    let signalingSet = false
+    let stream: MediaStream | null = null
 
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    joinRoom(roomId)
+    try {
+      socketConnect()
+      stream = await getLocalStream()
+      setupSignalingHandlers()
+      signalingSet = true
+
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      joinRoom(roomId)
+    } catch (err) {
+      console.error('[加入房间] 失败:', err)
+
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      if (signalingSet) {
+        removeSignalingHandlers()
+      }
+
+      store.setLocalStream(null)
+      store.setRemoteStream(null)
+      store.setConnectionStatus('disconnected')
+      store.setRemoteUserId(null)
+      socketDisconnect()
+
+      throw err
+    }
   }
 
   async function startScreenShare() {
